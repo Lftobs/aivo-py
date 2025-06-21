@@ -7,9 +7,6 @@ r = sr.Recognizer()
 mic = sr.Microphone(sample_rate=16000)
 
 
-print("Loading MLXWhisper model...")
-whisper_model = mlx_whisper.load_model("mlx-community/whisper-medium.en-mlx")
-
 print("Initializing speech recognition...")
 try:
     with mic as source:
@@ -19,10 +16,8 @@ try:
             audio = r.listen(source)
             # Convert audio to numpy array
             audio_data = np.frombuffer(audio.get_raw_data(), dtype=np.int16).astype(np.float32) / 32768.0
-            
             # Process audio with the preloaded Apple MLXWhisper model
-            result = mlx_whisper.transcribe(audio_data, model=whisper_model)["text"]
-            
+            result = mlx_whisper.transcribe(audio_data, path_or_hf_repo="mlx-community/whisper-medium.en-mlx")
             # Print the transcribed text
             if result:
                 timestamp = datetime.now().strftime("%H:%M:%S")
