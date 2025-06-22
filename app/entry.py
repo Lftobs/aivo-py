@@ -131,10 +131,7 @@ class AudioRecorder:
                 contents=full_text
             )
             summary = response.text
-            # print(summary, end='\n')r
             data = extract_segments(summary)
-            # print(data)
-            # Format timestamps
             start_formatted = time.strftime(
                 '%Y-%m-%d %H:%M:%S', 
                 time.localtime(self.stream_start_time)

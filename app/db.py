@@ -12,6 +12,9 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DB_URL")
 
+if not DATABASE_URL:
+    raise ValueError("DB_URL environment variable is not set")
+
 engine = create_engine(DATABASE_URL)
 
 class Recording(Base):
@@ -67,7 +70,6 @@ def save_recording_to_db(unique_id: str, start_time: datetime, end_time: datetim
 
 def save_summary_to_db(recording_id: int, actual_text: str, start_time: datetime, end_time: datetime, summary_text: str, overview: str, keywords: list = None):
     """Save a summary to the database."""
-    print('ppppppppp')
     db = SessionLocal()
     try:
         db_summary = Summary(
