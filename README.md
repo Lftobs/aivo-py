@@ -61,7 +61,8 @@ AIVO is a background service that continuously records audio, transcribes it usi
 
 2. **Install dependencies**:
    ```bash
-   pip install -r requirements.txt
+   # Make sure uv is installed: https://github.com/astral-sh/uv
+   uv pip install -e .
    ```
 
 3. **Install as system service**:
@@ -104,10 +105,10 @@ AIVO is a background service that continuously records audio, transcribes it usi
 All configuration is managed through environment variables in the `.env` file:
 
 - `DB_URL`: PostgreSQL connection string
-- `GEMINI_API_KEY`: Google Gemini API key (optional)
-- `CHUNK_DURATION_SECONDS`: Recording chunk duration (default: 180)
+- `GEMINI_API_KEY`: Google Gemini API key 
+<!-- - `CHUNK_DURATION_SECONDS`: Recording chunk duration (default: 180)
 - `WHISPER_MODEL_SIZE`: Whisper model size (default: base.en)
-- `WHISPER_DEVICE`: Processing device (cpu/cuda)
+- `WHISPER_DEVICE`: Processing device (cpu/cuda) -->
 
 ## Usage
 
@@ -131,13 +132,11 @@ sudo systemctl status aivo-scheduler
 
 ```bash
 # Start recorder
-python app/entry.py
-
-# Run hourly aggregation
-python app/job.py
+python main.py recoder
 
 # Start scheduler
-python app/scheduler.py
+python main.py scheduler
+
 ```
 
 ## Data Flow
@@ -199,17 +198,21 @@ GROUP BY day_date ORDER BY day_date DESC;
 aivo-py/
 ├── app/
 │   ├── __init__.py
-│   ├── entry.py        # Main recorder service
-│   ├── scheduler.py    # Hourly job scheduler  
-│   ├── job.py         # Aggregation logic
-│   ├── db.py          # Database models
-│   ├── utils.py       # AI processing
-│   └── ...
-├── aivo-recorder.service    # Systemd service file
-├── aivo-scheduler.service   # Systemd service file  
-├── setup.sh               # Installation script
-├── .env.example          # Configuration template
-└── README.md
+│   ├── db.py                 # Database models and setup
+│   ├── entry.py              # Main recorder service
+│   ├── job.py                # Aggregation and summarization logic
+│   ├── list_audio_devices.py   # Utility to list audio devices
+│   ├── scheduler.py          # Hourly job scheduler
+│   └── utils.py              # AI processing helpers
+├── .env.example              # Configuration template
+├── .gitignore
+├── aivo-recorder.service     # Systemd service file for recorder
+├── aivo-scheduler.service    # Systemd service file for scheduler
+├── main.py                   # Main entry point for direct execution
+├── pyproject.toml            # Project metadata and dependencies
+├── README.md
+├── setup.sh                  # Installation and setup script
+└── uv.lock                   # Pinned dependencies for uv
 ```
 
 ### Adding Features
@@ -225,7 +228,3 @@ aivo-py/
 - Restricted file system access via systemd
 - Audio group membership required for microphone access
 - Database credentials via environment variables only
-
-## License
-
-[License information here]
