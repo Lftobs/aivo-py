@@ -144,7 +144,12 @@ def update_duration():
 
 def toggle_recording():
     """Handle recording start/stop with button click"""
-    global RECORDING, recording_start_time, audio_buffer, PROCESSING_ACTIVE, current_transcript
+    global \
+        RECORDING, \
+        recording_start_time, \
+        audio_buffer, \
+        PROCESSING_ACTIVE, \
+        current_transcript
 
     if not RECORDING:
         # Start recording
@@ -233,7 +238,7 @@ def improve_transcript(full_raw_text):
     if not full_raw_text:
         return ""  # Return empty if nothing to improve
 
-    print(f"⚙️ Sending full transcript for final improvement...")
+    print("⚙️ Sending full transcript for final improvement...")
 
     system_instruction = """You are an expert assistant tasked with correcting and improving speech-to-text transcripts in real-time.
 Focus on fixing grammar, punctuation, and capitalization.
@@ -249,7 +254,7 @@ Preserve the original meaning accurately. Only output the corrected text."""
                 temperature=0.2,
             ),
         )
-        print(f"💡 Received corrected transcript.")
+        print("💡 Received corrected transcript.")
         return response.text
     except Exception as e:
         print(f"⚠️ Transcription generation API error: {e}")

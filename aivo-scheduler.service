@@ -1,0 +1,34 @@
+[Unit]
+Description=AIVO Hourly Aggregation Scheduler
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=aivo
+Group=aivo
+WorkingDirectory=/home/aivo/aivo-py
+Environment=PATH=/home/aivo/aivo-py/.venv/bin
+ExecStart=/home/aivo/aivo-py/.venv/bin/python main.py scheduler
+Restart=always
+RestartSec=30
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log /home/aivo/aivo-py
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aivo-scheduler
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

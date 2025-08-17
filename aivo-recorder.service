@@ -1,0 +1,37 @@
+[Unit]
+Description=AIVO Audio Recorder Service
+After=network.target sound.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=aivo
+Group=aivo
+WorkingDirectory=/home/aivo/aivo-py
+Environment=PATH=/home/aivo/aivo-py/.venv/bin
+ExecStart=/home/aivo/aivo-py/.venv/bin/python main.py recorder
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log /home/aivo/aivo-py
+
+# Audio device access
+SupplementaryGroups=audio
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aivo-recorder
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

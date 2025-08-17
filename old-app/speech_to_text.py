@@ -15,9 +15,14 @@ try:
             print("Press Ctrl+C to stop")
             audio = r.listen(source)
             # Convert audio to numpy array
-            audio_data = np.frombuffer(audio.get_raw_data(), dtype=np.int16).astype(np.float32) / 32768.0
+            audio_data = (
+                np.frombuffer(audio.get_raw_data(), dtype=np.int16).astype(np.float32)
+                / 32768.0
+            )
             # Process audio with the preloaded Apple MLXWhisper model
-            result = mlx_whisper.transcribe(audio_data, path_or_hf_repo="mlx-community/whisper-medium.en-mlx")
+            result = mlx_whisper.transcribe(
+                audio_data, path_or_hf_repo="mlx-community/whisper-medium.en-mlx"
+            )
             # Print the transcribed text
             if result:
                 timestamp = datetime.now().strftime("%H:%M:%S")
