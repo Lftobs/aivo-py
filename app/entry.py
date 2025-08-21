@@ -131,7 +131,7 @@ class AivoRecorder:
 
                     # Add to emergency backup (rotating buffer) and track size
                     self.emergency_backup.append(indata.copy())
-                    self._emergency_frames = frames
+                    self._emergency_frames += frames
 
                     # Keep emergency backup within limits (O(1) popleft)
                     while (
@@ -140,7 +140,6 @@ class AivoRecorder:
                     ):
                         removed = self.emergency_backup.popleft()
                         self._emergency_frames -= len(removed)
-
             except Exception as e:
                 logger.error("❌ Error in audio callback: %s", e)
 
