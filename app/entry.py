@@ -1,11 +1,19 @@
+""" 
+AIVO Recorder Service
+This service captures audio in real-time, transcribes it using Whisper, and saves the results to a database.
+It handles audio in chunks, manages emergency backups, and supports graceful shutdowns.     
+"""
+
 import asyncio
 import signal
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
-from datetime import datetime, timezone, timedelta
 
+from typing import List, Optional, Deque
+from datetime import datetime, timezone, timedelta
 import numpy as np
+import threading
+from collections import deque
 import sounddevice as sd
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
@@ -17,20 +25,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - [%(levelname)s] - (AIVO-Recorder) - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.StreamHandler(), logging.FileHandler("./recorder.log", mode="a")],
+    handlers=[logging.StreamHandler(), logging.FileHandler("./logs/recorder.log", mode="a")],
 )
 logger = logging.getLogger(__name__)
 
-# --- Initialize DB on startup ---
-# This ensures tables are created before we try to write to them.
 init_db()
 
 load_dotenv()
-
-# The Gemini client and prompts are for summarization, which should now be a separate process.
-# We can remove them from this real-time recording script.
-# client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-# from .utils import extract_segments, sys_prompt
 
 
 @dataclass
@@ -39,10 +40,11 @@ class AudioConfig:
     Configuration for the AIVO Recorder service.
     This includes audio settings, model parameters, and buffer management.
     """
+
     sample_rate: int = 16000
     channels: int = 1
-    
-    chunk_duration_seconds: int = 180 # 3 minutes 
+
+    chunk_duration_seconds: int = 180  # 3 minutes
     model_size: str = "base.en"
     device: str = "cpu"
 
@@ -71,6 +73,7 @@ class AivoRecorder:
     It runs continuously, processing audio in chunks and creating emergency backups to prevent data loss.
     It also handles graceful shutdowns and periodic backups.
     """
+
     def __init__(self, config: AudioConfig):
         self.config = config
         try:
@@ -97,12 +100,24 @@ class AivoRecorder:
         self.last_backup_time = datetime.now(timezone.utc)
 
         # Emergency backup buffer to prevent data loss
-        self.emergency_backup: List[np.ndarray] = []
+        self.emergency_backup: Deque[np.ndarray] = deque()
+        # Synchronize access between PortAudio callback thread and asyncio tasks
+        self._buffer_lock = threading.Lock()
+        # Track total frames in emergency backup to enforce max size in O(1)
+        self._emergency_frames = 0
 
         logger.info(
             "🎤 Recording in chunks of %s seconds (3 minutes for optimal quality).",
             config.chunk_duration_seconds,
         )
+
+    def _normalize_audio(self, audio_data: np.ndarray):
+        """Normalize audio data to [-1, 1] range."""
+        max_amplitude = np.max(np.abs(audio_data))
+        if max_amplitude > 0:
+            return audio_data / max_amplitude
+        else:
+            return np.zeros_like(audio_data)
 
     def _audio_callback(self, indata, frames, time_info, status):
         """This function is called by sounddevice for each new audio buffer."""
@@ -110,22 +125,21 @@ class AivoRecorder:
             logger.warning("SoundDevice status: %s", status)
         if self.is_running:
             try:
-                # Add to main buffer
-                self.audio_buffer.append(indata.copy())
+                with self._buffer_lock:
+                    # Add to main buffer
+                    self.audio_buffer.append(indata.copy())
 
-                # Add to emergency backup (rotating buffer)
-                self.emergency_backup.append(indata.copy())
+                    # Add to emergency backup (rotating buffer) and track size
+                    self.emergency_backup.append(indata.copy())
+                    self._emergency_frames = frames
 
-                # Keep emergency backup within limits
-                current_frames = sum(len(chunk) for chunk in self.emergency_backup)
-                if current_frames > self.config.max_buffer_frames:
-                    # Remove oldest chunks
+                    # Keep emergency backup within limits (O(1) popleft)
                     while (
-                        current_frames > self.config.max_buffer_frames
+                        self._emergency_frames > self.config.max_buffer_frames
                         and self.emergency_backup
                     ):
-                        removed = self.emergency_backup.pop(0)
-                        current_frames -= len(removed)
+                        removed = self.emergency_backup.popleft()
+                        self._emergency_frames -= len(removed)
 
             except Exception as e:
                 logger.error("❌ Error in audio callback: %s", e)
@@ -133,35 +147,27 @@ class AivoRecorder:
     async def _emergency_backup_chunk(self):
         """Emergency backup function to save audio data if main processing fails."""
         try:
-            if not self.emergency_backup:
-                return
-
-            current_time = datetime.now(timezone.utc)
-            backup_start_time = current_time - timedelta(
-                seconds=self.config.backup_interval_seconds
-            )
-
-            # Create smaller backup audio data
+            # Snapshot the backup buffer under lock to avoid races with the callback
+            with self._buffer_lock:
+                if not self.emergency_backup:
+                    return
+                backup_chunks = list(self.emergency_backup)
+                total_frames = sum(len(c) for c in backup_chunks)
+            # Build audio outside the lock
             backup_audio = (
-                np.concatenate(self.emergency_backup, axis=0)
-                .flatten()
-                .astype(np.float32)
+                np.concatenate(backup_chunks, axis=0).flatten().astype(np.float32)
             )
-
-            # Normalize audio
-            max_amp = np.max(np.abs(backup_audio))
-            if max_amp > 0:
-                backup_audio = backup_audio / max_amp
-
+            backup_audio = self._normalize_audio(backup_audio)
             logger.info("🔄 Creating emergency backup transcription...")
-
             # Transcribe backup audio
             segments, _ = await asyncio.to_thread(
                 self.whisper_model.transcribe, backup_audio
             )
             text = " ".join(seg.text for seg in segments).strip()
-
             if text:
+                current_time = datetime.now(timezone.utc)
+                duration_seconds = total_frames / self.config.sample_rate
+                backup_start_time = current_time - timedelta(seconds=duration_seconds)
                 await asyncio.to_thread(
                     save_transcript_chunk,
                     transcript_text=f"[BACKUP] {text}",
@@ -169,10 +175,10 @@ class AivoRecorder:
                     end_time=current_time,
                 )
                 logger.info("✅ Emergency backup saved successfully")
-
             # Clear backup buffer after successful save
-            self.emergency_backup.clear()
-
+            with self._buffer_lock:
+                self.emergency_backup.clear()
+                self._emergency_frames = 0
         except Exception as e:
             logger.error("❌ Emergency backup failed: %s", e)
 
@@ -197,9 +203,7 @@ class AivoRecorder:
             self.audio_buffer.clear()
 
             # Normalize audio
-            max_amp = np.max(np.abs(audio_data))
-            if max_amp > 0:
-                audio_data = audio_data / max_amp
+            audio_data = self._normalize_audio(audio_data)
 
             logger.info(
                 "🎙️ Transcribing audio from %s to %s...",

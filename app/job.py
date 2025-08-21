@@ -6,10 +6,15 @@ from .utils import get_ai_insights
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - [%(levelname)s] - (AIVO-Aggregator) - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - (AIVO-Job) - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("./logs/aivo-job.log", mode="a"),
+    ],
 )
 
+logger = logging.getLogger(__name__)
 
 def process_pending_hourly_records():
     """Process all pending hourly records that are in PROCESSING status."""
@@ -49,7 +54,8 @@ def process_pending_hourly_records():
 
                 if not chunks:
                     logging.warning(
-                        "HourlyRecord %s has no chunks. Marking as COMPLETED.", record.id
+                        "HourlyRecord %s has no chunks. Marking as COMPLETED.",
+                        record.id,
                     )
                     record.status = StatusEnum.COMPLETED
                     db.commit()
@@ -72,7 +78,8 @@ def process_pending_hourly_records():
 
                 db.commit()
                 logging.info(
-                    "✅ Successfully processed and completed HourlyRecord %s.", record.id
+                    "✅ Successfully processed and completed HourlyRecord %s.",
+                    record.id,
                 )
 
             except Exception as e:

@@ -17,7 +17,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("./aivo-scheduler.log", mode="a"),
+        logging.FileHandler("./logs/aivo-scheduler.log", mode="a"),
     ],
 )
 logger = logging.getLogger(__name__)

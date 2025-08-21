@@ -1,4 +1,5 @@
 import sys
+import os
 import asyncio
 import logging
 
@@ -12,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    if not os.path.exists("logs"):
+        os.mkdir("logs")
+
     """Main entry point for the AIVO application."""
     if len(sys.argv) < 2:
         print("Usage: python main.py [recorder|scheduler]")
@@ -22,6 +26,7 @@ def main():
     if module == "recorder":
         try:
             from app.entry import main as recorder_main
+
             logger.info("🚀 Starting AIVO Recorder Service...")
             asyncio.run(recorder_main())
         except KeyboardInterrupt:
@@ -35,6 +40,7 @@ def main():
     elif module == "scheduler":
         try:
             from app.scheduler import main as scheduler_main
+
             logger.info("🚀 Starting AIVO Scheduler Service...")
             scheduler_main()
         except KeyboardInterrupt:
@@ -44,7 +50,7 @@ def main():
             sys.exit(1)
         finally:
             logger.info("🔚 AIVO Scheduler Service stopped.")
-    
+
     elif module == "health":
         print("AIVO is running. All systems operational.")
         sys.exit(0)

@@ -7,7 +7,7 @@ Wants=network.target
 Type=simple
 User=aivo
 Group=aivo
-WorkingDirectory=/home/aivo/aivo-py
+WorkingDirectory=/home/aivo/aivo-py # replace with actual path
 Environment=PATH=/home/aivo/aivo-py/.venv/bin
 ExecStart=/home/aivo/aivo-py/.venv/bin/python main.py recorder
 Restart=always
